@@ -38,7 +38,10 @@ const SET_RLIMIT_CORE_FAILED_EXIT_CODE: i32 = 7;
 pub(crate) fn pre_main_hardening_linux() {
     // Disable ptrace attach / mark process non-dumpable.
     let ret_code = unsafe { libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0) };
-    if ret_code != 0 {
+    // prctl(2): success => 0, failure => -1 with errno set.
+    // Some proot setups return a positive value (e.g., 4) with errno=0 on success.
+    // Treat only -1 as failure so Codex keeps working under proot.
+    if ret_code == -1 {
         eprintln!(
             "ERROR: prctl(PR_SET_DUMPABLE, 0) failed: {}",
             std::io::Error::last_os_error()
@@ -131,7 +134,8 @@ fn set_core_file_size_limit_to_zero() {
     };
 
     let ret_code = unsafe { libc::setrlimit(libc::RLIMIT_CORE, &rlim) };
-    if ret_code != 0 {
+    // setrlimit(2): success => 0, failure => -1 with errno set.
+    if ret_code == -1 {
         eprintln!(
             "ERROR: setrlimit(RLIMIT_CORE) failed: {}",
             std::io::Error::last_os_error()
